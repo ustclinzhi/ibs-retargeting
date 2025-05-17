@@ -10,6 +10,7 @@ loss_weights:
   SRF_loss: 1.0      
   SPF_loss: 1.0      
   ERF_loss: 0.3 
+  ibs_loss: 50.0
 asset_dir: ${task.dataset.asset_dir}
 asset_dir_slurm: ${task.dataset.asset_dir_slurm}
 

@@ -43,14 +43,14 @@ llm:
 use_dpmsolver: False # Whether to use dpmsolver++ for sampling
 
 dataset:
-  active: real_dex  ## Available options: MultiDexShadowHandUR, DexGraspNet, Unidexgrasp, DexGRAB, real_dex, Grasp_anything
+  active: DexGraspNet ## Available options: MultiDexShadowHandUR, DexGraspNet, Unidexgrasp, DexGRAB, real_dex, Grasp_anything
   paths:
     MultiDexShadowHandUR:
       asset_dir: /inspurfs/group/mayuexin/datasets/MultiDex_UR
       asset_dir_slurm: /inspurfs/group/mayuexin/datasets/MultiDex_UR
     DexGraspNet:
-      asset_dir: /inspurfs/group/mayuexin/datasets/DexGraspNet
-      asset_dir_slurm: /inspurfs/group/mayuexin/datasets/DexGraspNet
+      asset_dir: /mnt/e/Assets/DexGraspNet/DexGraspNet
+      asset_dir_slurm: /mnt/e/Assets/DexGraspNet/DexGraspNet
     Unidexgrasp:
       asset_dir: /inspurfs/group/mayuexin/datasets/UniDexGrasp/DFCData
       asset_dir_slurm: /inspurfs/group/mayuexin/datasets/UniDexGrasp/DFCData
@@ -60,6 +60,6 @@ dataset:
     real_dex:
       asset_dir: /inspurfs/group/mayuexin/datasets/Realdex
       asset_dir_slurm: /inspurfs/group/mayuexin/datasets/Realdex
-    Grasp_anyting:
-      asset_dir: /inspurfs/group/mayuexin/datasets/Grasp_anything
-      asset_dir_slurm: /inspurfs/group/mayuexin/datasets/Grasp_anything
+    Grasp_anything:
+      asset_dir: /mnt/e/Assets/Dexgraspanyting/inspurfs/group/mayuexin/datasets/Dexgraspanyting
+      asset_dir_slurm: /mnt/e/Assets/Dexgraspanyting/inspurfs/group/mayuexin/datasets/Dexgraspanyting

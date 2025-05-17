@@ -26,7 +26,7 @@ dataset:
   frame_interval_test: 10
   device: cuda
   use_color: false
-  use_normal: true
+  use_normal: false
   is_downsample: true
   train_transforms: ['NumpyToTensor']
   test_transforms: ['NumpyToTensor']

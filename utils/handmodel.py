@@ -11,6 +11,8 @@ import trimesh.sample
 from csdf import index_vertices_by_faces, compute_sdf
 import pytorch3d
 from pytorch3d.ops import knn_points
+from pytorch3d.transforms import euler_angles_to_matrix
+import math
 class HandModel:
     def __init__(self, robot_name, urdf_filename, mesh_path,
                  batch_size=1,
@@ -109,11 +111,13 @@ class HandModel:
                 # print(link.visuals[0])
                 if robot_name == 'shadowhand' or robot_name == 'allegro' or robot_name == 'barrett':
                     filename = link.visuals[0].geometry.filename.split('/')[-1]
+                  
                 elif robot_name == 'allegro':
                     filename = f"{link.visuals[0].geometry.filename.split('/')[-2]}/{link.visuals[0].geometry.filename.split('/')[-1]}"
                 else:
                     filename = link.visuals[0].geometry.filename
-                mesh = tm.load(os.path.join(mesh_path, filename), force='mesh', process=False)
+                mesh = tm.load(os.path.join(mesh_path, "visual/"+filename), force='mesh', process=False)
+
             elif type(link.visuals[0].geometry) == Cylinder:
                 mesh = tm.primitives.Cylinder(
                     radius=link.visuals[0].geometry.radius, height=link.visuals[0].geometry.length)
@@ -143,7 +147,7 @@ class HandModel:
             # Surface point
             # mesh.sample(int(mesh.area * 100000)) * scale
             if self.robot_name == 'shadowhand':
-                pts, pts_face_index = trimesh.sample.sample_surface(mesh=mesh, count=64)
+                pts, pts_face_index = trimesh.sample.sample_surface(mesh=mesh, count=2048)
                 pts_normal = np.array([mesh.face_normals[x] for x in pts_face_index], dtype=float)
             else:
                 pts, pts_face_index = trimesh.sample.sample_surface(mesh=mesh, count=128)
@@ -163,19 +167,23 @@ class HandModel:
                     pts_normal = np.array([[0., 0., 1.] for x in range(pts.shape[0])], dtype=float)
 
             pts *= scale
-            # pts = mesh.sample(128) * scale
+            # pts = mesh.sample(2048) * scale
             # print(link.name, len(pts))
             # new
-            if robot_name == 'shadowhand':
-                pts = pts[:, [0, 2, 1]]
-                pts_normal = pts_normal[:, [0, 2, 1]]
-                pts[:, 1] *= -1
-                pts_normal[:, 1] *= -1
+            # if robot_name == 'shadowhand':
+            #     pts = pts[:, [0, 2, 1]]
+            #     pts_normal = pts_normal[:, [0, 2, 1]]
+            #     pts[:, 1] *= -1
+            #     pts_normal[:, 1] *= -1
 
-            pts = np.matmul(rotation, pts.T).T + translation
-            # pts_normal = np.matmul(rotation, pts_normal.T).T
+          
+             # pts_normal = np.matmul(rotation, pts_normal.T).T
             pts = np.concatenate([pts, np.ones([len(pts), 1])], axis=-1)
             pts_normal = np.concatenate([pts_normal, np.ones([len(pts_normal), 1])], axis=-1)
+
+                
+                
+
             self.surface_points[link.name] = torch.from_numpy(pts).to(
                 device).float().unsqueeze(0).repeat(batch_size, 1, 1)
             self.surface_points_normal[link.name] = torch.from_numpy(pts_normal).to(
@@ -227,6 +235,16 @@ class HandModel:
             self.global_translation = q[:, :3]
             self.global_rotation = robust_compute_rotation_matrix_from_ortho6d(torch.tensor([1., 0., 0., 0., 1., 0.], device='cuda').view(1, 6).repeat(q.shape[0], 1))
             self.current_status = self.robot.forward_kinematics(q[:, 3:])
+        elif q.shape[1] == 3 + 3 + 24:  # 3位移 + 3欧拉角（XYZ） + 24关节（你的情况）
+            self.global_translation = q[:, :3]
+            
+            # 假设旋转是欧拉角（XYZ顺序），转换为旋转矩阵
+            # q[:, 3:6] 是 (rx, ry, rz)，单位可能是弧度
+            self.global_rotation = euler_angles_to_matrix(q[:, 3:6], "XYZ")
+            
+            # 24个关节数据（6-30维）
+            self.current_status = self.robot.forward_kinematics(q[:, 6:])
+
         elif q.shape[1] == 3+22:#3+22
             self.global_translation = q[:, :3]
             self.global_rotation = robust_compute_rotation_matrix_from_ortho6d(torch.tensor([1., 0., 0., 0., 1., 0.], device='cuda').view(1, 6).repeat(q.shape[0], 1))
@@ -324,15 +342,45 @@ class HandModel:
         for link_name in self.surface_points:
             # for link_name in parts:
             # get transformation
-            if link_name  in ['forearm']:
+            if link_name  in ['forearm','wrist']:
                 continue
             trans_matrix = self.current_status[link_name].get_matrix()
             surface_points.append(
                 torch.matmul(trans_matrix, self.surface_points[link_name].transpose(1, 2)).transpose(1, 2)[..., :3])
+            
+# 构造绕 X 轴旋转 90 度的旋转矩阵
+        
+        rotation_matrix_x = torch.tensor([
+            [0, 0, 1],
+            [0, 1, 0],
+            [-1, 0, 0]
+        ], dtype=torch.float32)
+
+        # 将绕 X 轴旋转矩阵与原全局旋转矩阵相乘
+        rotation_matrix_x = rotation_matrix_x.to(self.global_rotation.device)
+        new_global_rotation = torch.matmul(rotation_matrix_x, self.global_rotation.float())           
         surface_points = torch.cat(surface_points, 1)
         surface_points = torch.matmul(self.global_rotation.float(), surface_points.transpose(1, 2)).transpose(1,
-                                                                                                      2) + self.global_translation.unsqueeze(
+                                                                                                    2) + self.global_translation.unsqueeze(
             1)
+        # # 添加旋转操作
+        # translation = torch.tensor([0, - 0.9628254771232605,
+        # -0.28079816699028015], dtype=torch.float32, device=surface_points.device)
+        # surface_points = surface_points + translation.unsqueeze(0).unsqueeze(0)
+
+        # theta = np.pi / 2
+        # rotation_matrix_x = torch.tensor([
+        #     [1, 0, 0],
+        #     [0, np.cos(theta), -np.sin(theta)],
+        #     [0, np.sin(theta), np.cos(theta)]
+        # ], dtype=torch.float32, device=surface_points.device)
+
+        #surface_points = torch.matmul(surface_points, rotation_matrix_x.T)
+
+        # translation_back = torch.tensor([0, 0.9628254771232605,
+        # 0.28079816699028015], dtype=torch.float32, device=surface_points.device)
+        # surface_points = surface_points + translation_back.unsqueeze(0).unsqueeze(0)
+
         # if downsample:
         #     surface_points = surface_points[:, torch.randperm(surface_points.shape[1])][:, :778]
         return surface_points * self.scale
@@ -439,9 +487,9 @@ class HandModel:
 
 
 def get_handmodel(batch_size, device, hand_scale=1., robot='shadowhand'):
-    urdf_assets_meta = json.load(open("assets/urdf/urdf_assets_meta.json"))
-    urdf_path = urdf_assets_meta['urdf_path'][robot]
-    meshes_path = urdf_assets_meta['meshes_path'][robot]
+    urdf_assets_meta = json.load(open("/home/lz/DexGrasp-Anything/assets/urdf/urdf_assets_meta.json"))
+    urdf_path = "/mnt/e/IBS/related-work/dex-retargeting/assets/robots/hands/shadow_hand/shadow_hand_right.urdf"#urdf_assets_meta['urdf_path'][robot]
+    meshes_path = "/mnt/e/IBS/related-work/dex-retargeting/assets/robots/hands/shadow_hand/meshes"
     hand_model = HandModel(robot, urdf_path, meshes_path, batch_size=batch_size, device=device, hand_scale=hand_scale)
     return hand_model
 

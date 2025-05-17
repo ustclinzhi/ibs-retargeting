@@ -171,7 +171,7 @@ class GraspGenURVisualizer():
                 scene_object = scene_id
                 mesh_path = os.path.join(dataloader.dataset.asset_dir,'contact_meshes', f'{scene_object}.ply')
             
-            elif dataloader.dataset.datasetname == 'Grasp_anyting'and self.visualize_html:
+            elif dataloader.dataset.datasetname == 'Grasp_anything'and self.visualize_html:
                 scene_object = scene_id
                 mesh_path = os.path.join(dataloader.dataset.asset_dir,'meshdata', f'{scene_object}.obj')
                 obj_mesh = trimesh.load(mesh_path)

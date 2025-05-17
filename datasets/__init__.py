@@ -3,4 +3,4 @@ from .DexGraspNet import DexGraspNet
 from .Unidexgrasp import Unidexgrasp
 from .real_dex import real_dex
 from .DexGRAB import DexGRAB
-from .Grasp_anyting import Grasp_anyting
+from .Grasp_anything import Grasp_anything

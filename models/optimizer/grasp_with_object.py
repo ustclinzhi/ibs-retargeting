@@ -11,6 +11,8 @@ import torch.functional as F
 from utils.handmodel import get_handmodel, ERF_loss, SPF_loss, SRF_loss
 from einops import rearrange
 from termcolor import cprint
+from utils.ibs import *
+from chamfer_distance.chamfer_distance import ChamferDistance as chamfer_dist
 @OPTIMIZER.register()
 class GraspWithObject(Optimizer):
 
@@ -46,6 +48,8 @@ class GraspWithObject(Optimizer):
         self.weight_ERF_loss = cfg.loss_weights.ERF_loss
         self.weight_SPF_loss = cfg.loss_weights.SPF_loss
         self.weight_SRF_loss = cfg.loss_weights.SRF_loss
+        self.weight_ibs_loss = cfg.loss_weights.ibs_loss
+        self.ibs_model = DifferentiableIBS(n_samples=4096)
         cprint(f"\033[1;33m[INFO] ERF weight: {self.weight_ERF_loss}\033[0m", "yellow")
         cprint(f"\033[1;33m[INFO] SPF weight: {self.weight_SPF_loss}\033[0m", "yellow")
         cprint(f"\033[1;33m[INFO] SRF weight: {self.weight_SRF_loss}\033[0m", "yellow")
@@ -62,20 +66,56 @@ class GraspWithObject(Optimizer):
         Return:
             The optimizer objective value of current step
         """
-        obj_pcd = data['pos'].to(self.device)
-        self.hand_model.update_kinematics(q = x)
-        hand_pcd = self.hand_model.get_surface_points(q= x).to(dtype=torch.float32)
-        normal = data['normal'].clone().detach().requires_grad_(True).to(self.device)
-        obj_pcd = rearrange(obj_pcd, '(b n) c -> b n c', b=self._BATCH_SIZE, n=normal.shape[1])
+        # obj_pcd = data['pos'].to(self.device)
+        # self.hand_model.update_kinematics(q = x)
+        # hand_pcd = self.hand_model.get_surface_points(q= x).to(dtype=torch.float32)
+        # normal = data['normal'].clone().detach().requires_grad_(True).to(self.device)
+        # obj_pcd = rearrange(obj_pcd, '(b n) c -> b n c', b=self._BATCH_SIZE, n=normal.shape[1])
 
-        obj_pcd_nor = torch.cat((obj_pcd, normal), dim=-1).to(dtype=torch.float32)
-        ERF_loss_value = ERF_loss(obj_pcd_nor, hand_pcd)
-        dis_keypoint = self.hand_model.get_dis_keypoints(q= x)
-        SPF_loss_value = SPF_loss(dis_keypoint, obj_pcd)
-        hand_keypoint = self.hand_model.get_keypoints(q= x)
-        SRF_loss_value = SRF_loss(hand_keypoint)
-        return  self.weight_SRF_loss * SRF_loss_value  + self.weight_SPF_loss * SPF_loss_value + self.weight_ERF_loss * ERF_loss_value
-    
+        # obj_pcd_nor = torch.cat((obj_pcd, normal), dim=-1).to(dtype=torch.float32)
+        # ERF_loss_value = ERF_loss(obj_pcd_nor, hand_pcd)
+        # dis_keypoint = self.hand_model.get_dis_keypoints(q= x)
+        # SPF_loss_value = SPF_loss(dis_keypoint, obj_pcd)
+        # hand_keypoint = self.hand_model.get_keypoints(q= x)
+        # SRF_loss_value = SRF_loss(hand_keypoint)
+        #return  self.weight_SRF_loss * SRF_loss_value  + self.weight_SPF_loss * SPF_loss_value + self.weight_ERF_loss * ERF_loss_value
+        qpos=x
+        newq = torch.cat([
+            qpos[:, :6],
+            qpos[:, 6:9],
+            qpos[:, [13, 18, 23, 9, 14, 19, 24, 10, 15, 20, 25, 11, 16, 21, 26, 28, 12, 17, 22, 27, 29]]
+        ], dim=1)
+        self.hand_model.update_kinematics(q =newq)
+
+        hand_pcd = self.hand_model.get_surface_points(q =newq).to(dtype=torch.float32)  #[B,N,3]
+        #物体tensor
+        
+        
+        
+        # 加载点云数据
+        objpoint = data['objpointcloud'].to(self.device)  #[B,N,3]
+        
+        #计算ibs
+        #todo
+            # 初始化模型
+        self.ibs_model = self.ibs_model.to(self.device)
+        
+        # 前向计算
+        ibs_modelpoint = self.ibs_model(objpoint, hand_pcd)  # 输出形状 [B, N, 3]
+        # 读取原始ibs
+        
+
+        ibs_originpoint = data['ibspointcloud'].to(self.device)  # 形状: [B, N, 3]
+          
+        #计算与真实ibs差
+        #todo
+        chd = chamfer_dist()
+        
+       
+        dist1, dist2, _, _ = chd(ibs_modelpoint, ibs_originpoint )
+        ibs_loss = torch.mean(dist1) + torch.mean(dist2)
+        return self.weight_ibs_loss*ibs_loss
+
     def gradient(self, x: torch.Tensor = None, x_0: torch.Tensor= None, data: Dict= None, x_mean: torch.Tensor= None, x_sample: torch.Tensor= None, std = None) -> torch.Tensor:
         """ 
         Compute gradient for optimizer constraint and update the state based on the current gradient.
@@ -115,17 +155,18 @@ class GraspWithObject(Optimizer):
             # concatenate the id rot to x_in
             grad_list = []
             for i in range(x.shape[0] // self._BATCH_SIZE):
+                
                 i_x_0_in =x_0[i*self._BATCH_SIZE:(i+1)*self._BATCH_SIZE, :].requires_grad_(True)
-                if self.normalize_x_trans:
-                    i_x_0_in_denorm_trans = self.trans_denormalize(i_x_0_in[:, :3])
-                else:
-                    i_x_0_in_denorm_trans = i_x_0_in[:, :3]
-                if self.normalize_x:
-                    i_x_0_in_denorm_angle = self.angle_denormalize(i_x_0_in[:, 3:])
-                else:
-                    i_x_0_in_denorm_angle = i_x_0_in[:, 3:]
-                i_x_0_in_denorm = torch.cat([i_x_0_in_denorm_trans, i_x_0_in_denorm_angle], dim=-1)
-                obj = self.optimize(i_x_0_in_denorm, data, t=i)
+                # if self.normalize_x_trans:
+                #     i_x_0_in_denorm_trans = self.trans_denormalize(i_x_0_in[:, :3])
+                # else:
+                #     i_x_0_in_denorm_trans = i_x_0_in[:, :3]
+                # if self.normalize_x:
+                #     i_x_0_in_denorm_angle = self.angle_denormalize(i_x_0_in[:, 6:])
+                # else:
+                #     i_x_0_in_denorm_angle = i_x_0_in[:, 3:]
+                # i_x_0_in_denorm = torch.cat([i_x_0_in_denorm_trans, i_x_0_in_denorm_angle], dim=-1)
+                obj = self.optimize(i_x_0_in, data, t=i)
                 ###TODO
                 obj = torch.linalg.norm(obj)
                 i_grad = torch.autograd.grad(obj, x, retain_graph=True, allow_unused=True)[0]

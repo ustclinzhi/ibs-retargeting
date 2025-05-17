@@ -3,13 +3,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import DictConfig
-from utils.handmodel import get_handmodel, ERF_loss, SPF_loss, SRF_loss
+from utils.handmodel import get_handmodel#, ERF_loss, SPF_loss, SRF_loss
 from models.base import DIFFUSER
 from models.dm.schedule import make_schedule_ddpm 
 from models.optimizer.optimizer import Optimizer
 from plyfile import PlyData, PlyElement
 import numpy as np
 from einops import rearrange
+from utils.ibs import *
+from scipy.spatial.transform import Rotation as R
+
+from chamfer_distance.chamfer_distance import ChamferDistance as chamfer_dist
+import random
 @DIFFUSER.register()
 class DDPM(nn.Module):
     def __init__(self, eps_model: nn.Module, cfg: DictConfig, has_obser: bool, *args, **kwargs) -> None:
@@ -30,6 +35,9 @@ class DDPM(nn.Module):
         self.timesteps = cfg.steps
         self.schedule_cfg = cfg.schedule_cfg
         self.rand_t_type = cfg.rand_t_type
+        self.ibs_model = DifferentiableIBS(n_samples=4096)
+        self.noIBSloss=True
+        self.hand_model = get_handmodel(batch_size = 32, device = 'cuda')
 
         self.has_observation = has_obser # used in some task giving observation
 
@@ -123,31 +131,61 @@ class DDPM(nn.Module):
         ## predict noise
         condtion = self.eps_model.condition(data)
         output = self.eps_model(x_t, ts, condtion)
+        loss_dfm =self.criterion(output, noise)
+        # if loss_dfm<0.2:
+        #     self.noIBSloss=False
+        if self.noIBSloss:
+            loss=loss_dfm
+            return {'loss': loss,"ibs_loss": 0.0}
+    
         ## apply observation after forwarding to eps model
         ## this operation will detach gradient from the loss of the observation tokens
         ## because the target and output of the observation tokens all are constants
-        output = self.apply_observation(output, data)
+        # output = self.apply_observation(output, data)
         pred_x0 = self.sqrt_recip_alphas_cumprod[ts].reshape(B, *((1, ) * len(x_shape))) * x_t - \
             self.sqrt_recipm1_alphas_cumprod[ts].reshape(B, *((1, ) * len(x_shape))) * output
-        hand_model = get_handmodel(batch_size = B, device = self.device)
-        id_6d_rot = torch.tensor([1., 0., 0., 0., 1., 0.], device = self.device).view(1, 6).repeat(B, 1)
-        pred_x0[:, :3] = self.trans_denormalize(pred_x0[:, :3])
-        pred_x0[:, 3:] = self.angle_denormalize(pred_x0[:, 3:])
-        pred_x0 = torch.cat([pred_x0[:, :3], id_6d_rot, pred_x0[:, 3:]], dim=-1)
-        obj_pcd = data['pos'].to(self.device)
-        hand_model.update_kinematics(q = pred_x0)
-        hand_pcd = hand_model.get_surface_points(q= pred_x0).to(dtype=torch.float32)
-        normal = torch.tensor(np.array(data['normal']), device=self.device)
-        obj_pcd = rearrange(obj_pcd, '(b n) c -> b n c', b=B, n=normal.shape[1])
-        obj_pcd_nor = torch.cat((obj_pcd, normal), dim=-1).to(dtype=torch.float32)
-        ERF_loss_value = ERF_loss(obj_pcd_nor, hand_pcd)
-        dis_keypoint = hand_model.get_dis_keypoints(q= pred_x0)
-        SPF_loss_value = SPF_loss(dis_keypoint, obj_pcd)
-        hand_keypoint = hand_model.get_keypoints(q= pred_x0)
-        SRF_loss_value = SRF_loss(hand_keypoint)
-        loss_dfm =self.criterion(output, noise)
-        loss = loss_dfm  + SRF_loss_value + SPF_loss_value + ERF_loss_value
-        return {'loss': loss}
+        hand_model = self.hand_model
+
+        qpos=pred_x0
+        newq = torch.cat([
+            qpos[:, :6],
+            qpos[:, 6:9],
+            qpos[:, [13, 18, 23, 9, 14, 19, 24, 10, 15, 20, 25, 11, 16, 21, 26, 28, 12, 17, 22, 27, 29]]
+        ], dim=1)
+        hand_model.update_kinematics(q =newq)
+
+        hand_pcd = hand_model.get_surface_points(q =newq).to(dtype=torch.float32)  #[B,N,3]
+        #物体tensor
+        
+        
+        
+        # 加载点云数据
+        objpoint = data['objpointcloud'].to(self.device)  #[B,N,3]
+        
+        #计算ibs
+        #todo
+            # 初始化模型
+        self.ibs_model = self.ibs_model.to(self.device)
+        
+        # 前向计算
+        ibs_modelpoint = self.ibs_model(objpoint, hand_pcd)  # 输出形状 [B, N, 3]
+        # 读取原始ibs
+        
+
+        ibs_originpoint = data['ibspointcloud'].to(self.device)  # 形状: [B, N, 3]
+          
+        #计算与真实ibs差
+        #todo
+        chd = chamfer_dist()
+        
+       
+        dist1, dist2, _, _ = chd(ibs_modelpoint, ibs_originpoint )
+        ibs_loss = torch.mean(dist1) + torch.mean(dist2)
+        
+        
+        loss = loss_dfm+50*ibs_loss 
+  
+        return {'loss': loss,"ibs_loss": ibs_loss, 'loss_dfm': loss_dfm}
     
     def model_predict(self, x_t: torch.Tensor, t: torch.Tensor, cond: torch.Tensor) -> Tuple:
         """ Get and process model prediction
@@ -224,7 +262,7 @@ class DDPM(nn.Module):
         noise = torch.randn_like(x_t) if t > 0 else 0. # no noise if t == 0
 
         pred_x = model_mean + (0.5 * model_log_variance).exp() * noise
-        if self.optimizer is not None:
+        if self.optimizer is  not None:
             sample_std = (0.5 * model_log_variance).exp()
             return pred_x, pred_xstart, sample_std , model_mean 
         return pred_x
@@ -239,14 +277,17 @@ class DDPM(nn.Module):
             Sampled data, <B, T, ...>
         """
         x_t = torch.randn_like(data['x'], device=self.device)
+        
         ## apply observation to x_t
         x_t = self.apply_observation(x_t, data)
+        
         ## precompute conditional feature, which will be used in every sampling step
         with torch.no_grad():
             condition = self.eps_model.condition(data)
         data['cond'] = condition
         ## iteratively sampling
         all_x_t = [x_t]
+        
         #############################################################
         # Physics-Guided Sampling
         #############################################################
@@ -287,7 +328,7 @@ class DDPM(nn.Module):
             all_x_t.append(x_0)
 
         else:
-            if self.optimizer is not None:
+            if self.optimizer is  not None:
                 for t in reversed(range(0, self.timesteps)):
                     if t % self.cfg.opt_interval == 0:
                         with torch.enable_grad():
@@ -296,6 +337,7 @@ class DDPM(nn.Module):
                             x_t = self.optimizer.gradient(x_t, pred_xstart, data, x_mean=model_mean, x_sample = x_t_sample, std=sample_std)
                             x_t = x_t.detach()
                             all_x_t.append(x_t)
+                            print('t:',t,'in',self.timesteps)
                     else:
                         with torch.no_grad(): 
                             x_t, __,__,__,= self.p_sample(x_t, t, data)
@@ -304,6 +346,7 @@ class DDPM(nn.Module):
             else:
                 with torch.no_grad():
                     for t in reversed(range(0, self.timesteps)):
+                        
                         x_t = self.p_sample(x_t, t, data)
                         x_t = self.apply_observation(x_t, data)
                     

@@ -93,8 +93,8 @@ def stability_tester(args: argparse.Namespace) -> dict:
         # object_mesh_path = f'/inspurfs/group/mayuexin/datasets/MultiDex_UR/object/{object_name.split("+")[0]}/{object_name.split("+")[1]}/{object_name.split("+")[1]}.stl'
         #realdex
         object_mesh_path = os.path.join('/inspurfs/group/mayuexin/datasets/Realdex/meshdata', f'{object_name}.obj')
-        #grasp_anyting
-        # object_mesh_path = os.path.join('/inspurfs/group/mayuexin/datasets/grasp_anyting/mesh', f'{object_name}.obj')
+        #Grasp_anything
+        # object_mesh_path = os.path.join('/inspurfs/group/mayuexin/datasets/Grasp_anything/mesh', f'{object_name}.obj')
         #unidex 
         # object_mesh_path = os.path.join('/inspurfs/group/mayuexin/datasets/UniDexGrasp/DFCData/obj_scale_urdf', f'{object_name}.obj')
         #dexgrasp 
@@ -154,8 +154,8 @@ def collision_tester(args: argparse.Namespace, stability_results: dict) -> None:
     # obj_pcds_nors_dict = pickle.load(open('/inspurfs/group/mayuexin/zym/diffusion+hand/Scene-Diffuser/MultiDex_UR/object_pcds_nors.pkl', 'rb'))
     #realdex
     obj_pcds_nors_dict = pickle.load(open('/inspurfs/group/mayuexin/datasets/Realdex/object_pcds_nors.pkl', 'rb'))
-    #grasp_anyting
-    # obj_pcds_nors_dict = pickle.load(open('/inspurfs/group/mayuexin/datasets/grasp_anyting/object_pcds_nors.pkl', 'rb'))
+    #Grasp_anything
+    # obj_pcds_nors_dict = pickle.load(open('/inspurfs/group/mayuexin/datasets/Grasp_anything/object_pcds_nors.pkl', 'rb'))
     #unidex
     # obj_pcds_nors_dict = pickle.load(open('/inspurfs/group/mayuexin/datasets/UniDexGrasp/DFCData/scaled_object_pcds_nors.pkl', 'rb'))
     #dexgrasp

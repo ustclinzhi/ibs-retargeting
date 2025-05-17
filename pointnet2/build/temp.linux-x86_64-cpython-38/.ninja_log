@@ -1,0 +1,19 @@
+# ninja log v5
+0	14878	1744012120054519144	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/ball_query_gpu.o	4eb7470aadedbb5
+1	15165	1744012120344519164	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/interpolate_gpu.o	2492011bf2aaec87
+1	15256	1744012120434519172	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/group_points_gpu.o	ebce6ad4e7c5a98e
+2	15301	1744012120484519174	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/sampling_gpu.o	6ebf84601ee56013
+0	19692	1744012124864520420	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/sampling.o	8d0c289aeab3c7e2
+0	19975	1744012125144520535	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/bindings.o	fc3ec0a816f37d3a
+0	20047	1744012125224520567	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/group_points.o	e9ad49cd04b201df
+0	20051	1744012125224520567	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/ball_query.o	4c1e1ea4031a4d9a
+1	20088	1744012125264520584	/home/lz/DexGrasp-Anything/Pointnet2.ScanNet/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/interpolate.o	4da1f80214a7f71e
+0	14739	1744012378554489404	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/ball_query_gpu.o	34cf92bcc1b23732
+1	14940	1744012378764489400	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/group_points_gpu.o	4e77b6ef2c107c23
+2	15034	1744012378854489398	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/interpolate_gpu.o	2b7bf61e1ddcb8a0
+1	15489	1744012379314489391	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/sampling_gpu.o	ad99a7150ed1a05a
+0	19805	1744012383624489306	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/ball_query.o	c9a7cd96d6d07a1f
+1	19906	1744012383724489303	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/group_points.o	a4c1ca009465fa74
+2	20012	1744012383824489301	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/sampling.o	fbc1c3db90658f8b
+1	20133	1744012383954489301	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/bindings.o	400a783155a9d9cd
+2	20283	1744012384094489296	/home/lz/DexGrasp-Anything/pointnet2/build/temp.linux-x86_64-cpython-38/_ext_src/src/interpolate.o	6d0354ded4498215

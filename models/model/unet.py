@@ -17,7 +17,7 @@ class UNetModel(nn.Module):
     def __init__(self, cfg: DictConfig, slurm: bool, *args, **kwargs) -> None:
         super(UNetModel, self).__init__()
         self.collected_points = []
-        self.d_x = cfg.d_x
+        self.d_x =30
         self.d_model = cfg.d_model
         self.nblocks = cfg.nblocks
         self.resblock_dropout = cfg.resblock_dropout
@@ -108,6 +108,7 @@ class UNetModel(nn.Module):
         t_emb = self.time_embed(t_emb)
 
         h = rearrange(x_t, 'b l c -> b c l')
+        
         h = self.in_layers(h) # <B, d_model, L>
         # print(h.shape, cond.shape) # <B, d_model, L>, <B, T , c_dim>
 
